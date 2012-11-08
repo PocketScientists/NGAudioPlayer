@@ -18,7 +18,7 @@
 @property (nonatomic, assign) id<NGAudioPlayerDelegate> delegate;
 @property (nonatomic, readonly, getter = isPlaying) BOOL playing;
 @property (nonatomic, readonly) NGAudioPlayerPlaybackState playbackState;
-
+@property (nonatomic, assign) BOOL usesMediaControls;
 @property (nonatomic, readonly) NSURL *currentPlayingURL;
 @property (nonatomic, readonly) NSTimeInterval durationOfCurrentPlayingURL;
 @property (nonatomic, readonly) NSArray *enqueuedURLs;

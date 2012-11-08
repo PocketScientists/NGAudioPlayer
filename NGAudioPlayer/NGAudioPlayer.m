@@ -7,7 +7,7 @@
 //
 
 #import "NGAudioPlayer.h"
-
+#import "NGAudioPlayerControlResponder.h"
 
 #define kNGAudioPlayerKeypathRate           NSStringFromSelector(@selector(rate))
 #define kNGAudioPlayerKeypathStatus         NSStringFromSelector(@selector(status))
@@ -31,6 +31,7 @@ static char currentItemContext;
 
 @property (nonatomic, strong) AVQueuePlayer *player;
 @property (nonatomic, readonly) CMTime CMDurationOfCurrentItem;
+@property (nonatomic, strong) NGAudioPlayerControlResponder *controlResponder;
 
 - (NSURL *)URLOfItem:(AVPlayerItem *)item;
 - (CMTime)CMDurationOfItem:(AVPlayerItem *)item;
@@ -85,6 +86,8 @@ static char currentItemContext;
         [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathCurrentItem options:NSKeyValueObservingOptionNew context:&currentItemContext];
 		
         _automaticallyUpdateNowPlayingInfoCenter = YES;
+        
+        self.usesMediaControls = YES;
     }
     
     return self;
@@ -163,6 +166,25 @@ static char currentItemContext;
         _delegateFlags.didFinishPlaybackOfURL = [delegate respondsToSelector:@selector(audioPlayer:didFinishPlaybackOfURL:)];
         _delegateFlags.didChangePlaybackState = [delegate respondsToSelector:@selector(audioPlayerDidChangePlaybackState:)];
         _delegateFlags.didFail = [delegate respondsToSelector:@selector(audioPlayer:didFailForURL:)];
+    }
+}
+
+- (BOOL)usesMediaControls {
+    if (self.controlResponder == nil) {
+        return NO;
+    }
+    return self.controlResponder.respondingToControls;
+}
+
+- (void)setUsesMediaControls:(BOOL)usesMediaControls {
+    if (usesMediaControls) {
+        if (self.controlResponder == nil) {
+            self.controlResponder = [[NGAudioPlayerControlResponder alloc] initWithAudioPlayer:self];
+        }
+        self.controlResponder.respondingToControls = YES;
+    }
+    else {
+        self.controlResponder.respondingToControls = NO;
     }
 }
 
