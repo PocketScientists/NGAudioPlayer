@@ -18,13 +18,15 @@
 @property (nonatomic, assign) id<NGAudioPlayerDelegate> delegate;
 @property (nonatomic, readonly, getter = isPlaying) BOOL playing;
 @property (nonatomic, readonly) NGAudioPlayerPlaybackState playbackState;
-@property (nonatomic, assign) BOOL usesMediaControls;
 @property (nonatomic, readonly) NSURL *currentPlayingURL;
 @property (nonatomic, readonly) NSTimeInterval durationOfCurrentPlayingURL;
 @property (nonatomic, readonly) NSArray *enqueuedURLs;
 
 /** Automatically updates MPNowPlayingInfoCenter with the dictionary associated with a given NSURL, defaults to YES */
 @property (nonatomic, assign) BOOL automaticallyUpdateNowPlayingInfoCenter;
+
+/** Uses media controls on Lock Screen and Multitasking Bar and responds to accessory's (i.e. headphones) remote controls, defaults to YES */
+@property (nonatomic, assign) BOOL usesMediaControls;
 
 
 /******************************************

@@ -10,6 +10,6 @@ To get the controls connected with NGAudioPlayer unfortunately you need to put t
 
 ```objectivec
 - (void)remoteControlReceivedWithEvent:(UIEvent *)receivedEvent {
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"remoteControlReceived" object:receivedEvent];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"remoteControlReceivedWithEvent" object:receivedEvent];
 }
 ```
