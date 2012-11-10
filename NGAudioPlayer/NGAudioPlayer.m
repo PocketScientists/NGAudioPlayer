@@ -3,6 +3,12 @@
 //  NGAudioPlayer
 //
 //  Created by Matthias Tretter on 21.06.12.
+//
+//  Contributors:
+//  -------------
+//  Matthias Tretter (@myell0w)
+//  Manfred Scheiner (@scheinem)
+//
 //  Copyright (c) 2012 NOUS Wissensmanagement GmbH. All rights reserved.
 //
 
@@ -13,11 +19,9 @@
 #define kNGAudioPlayerKeypathStatus         NSStringFromSelector(@selector(status))
 #define kNGAudioPlayerKeypathCurrentItem    NSStringFromSelector(@selector(currentItem))
 
-
 static char rateContext;
 static char statusContext;
 static char currentItemContext;
-
 
 @interface NGAudioPlayer () {
     // flags for methods implemented in the delegate
@@ -44,12 +48,7 @@ static char currentItemContext;
 
 @end
 
-
 @implementation NGAudioPlayer
-
-@synthesize delegate = _delegate;
-@synthesize player = _player;
-@synthesize automaticallyUpdateNowPlayingInfoCenter = _automaticallyUpdateNowPlayingInfoCenter;
 
 ////////////////////////////////////////////////////////////////////////
 #pragma mark - Lifecycle
@@ -86,8 +85,10 @@ static char currentItemContext;
         [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathCurrentItem options:NSKeyValueObservingOptionNew context:&currentItemContext];
 		
         _automaticallyUpdateNowPlayingInfoCenter = YES;
-        
         self.usesMediaControls = YES;
+        _removeAllURLsOnPlaybackStop = NO;
+        
+        _delegate_queue = dispatch_get_main_queue();
     }
     
     return self;
@@ -242,7 +243,11 @@ static char currentItemContext;
 
 - (void)stop {
     [self pause];
+    NSArray *urls = [self enqueuedURLs];
     [self removeAllURLs];
+    if (!self.removeAllURLsOnPlaybackStop) {
+        [self enqueueURLs:urls];
+    }
 }
 
 - (void)togglePlayback {
@@ -277,6 +282,30 @@ static char currentItemContext;
     for (NSURL *url in urls) {
         if ([url isKindOfClass:[NSURL class]]) {
             successfullyAdded = successfullyAdded && [self enqueueURL:url];
+        }
+    }
+    
+    return successfullyAdded;
+}
+
+- (BOOL)enqueuePlayerItem:(AVPlayerItem *)item {
+    if ([item isKindOfClass:[AVPlayerItem class]]) {
+        if ([self.player canInsertItem:item afterItem:nil] && [item.asset isKindOfClass:[AVURLAsset class]]) {
+            [self.player insertItem:item afterItem:nil];
+            
+            return YES;
+        }
+    }
+    
+    return NO;
+}
+
+- (BOOL)enqueueItems:(NSArray *)items {
+    BOOL successfullyAdded = YES;
+    
+    for (AVPlayerItem *item in items) {
+        if ([item isKindOfClass:[AVPlayerItem class]]) {
+            successfullyAdded = successfullyAdded && [self enqueuePlayerItem:item];
         }
     }
     
@@ -360,7 +389,9 @@ static char currentItemContext;
 
 - (void)handleRateChange:(NSDictionary *)change {
     if (_delegateFlags.didChangePlaybackState) {
-        [self.delegate audioPlayerDidChangePlaybackState:self.playbackState];
+        dispatch_async(self.delegate_queue, ^{
+            [self.delegate audioPlayerDidChangePlaybackState:self.playbackState];
+        });
     }
 }
 
@@ -369,7 +400,9 @@ static char currentItemContext;
     
     if (newStatus == AVPlayerStatusFailed) {
         if (_delegateFlags.didFail) {
-            [self.delegate audioPlayer:self didFailForURL:self.currentPlayingURL];
+            dispatch_async(self.delegate_queue, ^{
+                [self.delegate audioPlayer:self didFailForURL:self.currentPlayingURL];
+            });
         }
     }
 }
@@ -403,7 +436,9 @@ static char currentItemContext;
     NSDictionary *nowPlayingInfo = url.ng_nowPlayingInfo;
 	
     if (url != nil && self.playing && _delegateFlags.didStartPlaybackOfURL) {
-        [self.delegate audioPlayer:self didStartPlaybackOfURL:url];
+        dispatch_async(self.delegate_queue, ^{
+            [self.delegate audioPlayer:self didStartPlaybackOfURL:url];
+        });
     }
     
     if (self.automaticallyUpdateNowPlayingInfoCenter && NSClassFromString(@"MPNowPlayingInfoCenter") != nil) {
@@ -416,7 +451,9 @@ static char currentItemContext;
         NSURL *url = [self URLOfItem:notification.object];
         
         if (url != nil) {
-            [self.delegate audioPlayer:self didFinishPlaybackOfURL:url];
+            dispatch_async(self.delegate_queue, ^{
+                [self.delegate audioPlayer:self didFinishPlaybackOfURL:url];
+            });
         }
     }
 }
@@ -426,7 +463,9 @@ static char currentItemContext;
         NSURL *url = [self URLOfItem:notification.object];
         
         if (url != nil) {
-            [self.delegate audioPlayer:self didFailForURL:url];
+            dispatch_async(self.delegate_queue, ^{
+                [self.delegate audioPlayer:self didFailForURL:url];
+            });
         }
     }
 }
