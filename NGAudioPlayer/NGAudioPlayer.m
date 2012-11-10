@@ -8,6 +8,7 @@
 //  -------------
 //  Matthias Tretter (@myell0w)
 //  Manfred Scheiner (@scheinem)
+//  Alexander Wolf
 //
 //  Copyright (c) 2012 NOUS Wissensmanagement GmbH. All rights reserved.
 //
@@ -80,9 +81,11 @@ static char currentItemContext;
             _player = [AVQueuePlayer queuePlayerWithItems:nil];
         }
         
-        [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathRate options:NSKeyValueObservingOptionNew context:&rateContext];
-        [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathStatus options:NSKeyValueObservingOptionNew context:&statusContext];
-        [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathCurrentItem options:NSKeyValueObservingOptionNew context:&currentItemContext];
+        dispatch_async(dispatch_get_main_queue(), ^(void){
+            [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathRate options:NSKeyValueObservingOptionNew context:&rateContext ];
+            [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathStatus options:NSKeyValueObservingOptionNew context:&statusContext];
+            [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathCurrentItem options:NSKeyValueObservingOptionNew context:&currentItemContext];
+        });
 		
         _automaticallyUpdateNowPlayingInfoCenter = YES;
         self.usesMediaControls = YES;
@@ -113,15 +116,17 @@ static char currentItemContext;
 ////////////////////////////////////////////////////////////////////////
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
-    if (context == &rateContext && [keyPath isEqualToString:kNGAudioPlayerKeypathRate]) {
-        [self handleRateChange:change];
-    } else if (context == &statusContext && [keyPath isEqualToString:kNGAudioPlayerKeypathStatus]) {
-        [self handleStatusChange:change];
-    } else if (context == &currentItemContext && [keyPath isEqualToString:kNGAudioPlayerKeypathCurrentItem]) {
-        [self handleCurrentItemChange:change];
-    } else {
-        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-    }
+    dispatch_async(dispatch_get_main_queue(), ^(void){
+        if (context == &rateContext && [keyPath isEqualToString:kNGAudioPlayerKeypathRate]) {
+            [self handleRateChange:change];
+        } else if (context == &statusContext && [keyPath isEqualToString:kNGAudioPlayerKeypathStatus]) {
+            [self handleStatusChange:change];
+        } else if (context == &currentItemContext && [keyPath isEqualToString:kNGAudioPlayerKeypathCurrentItem]) {
+            [self handleCurrentItemChange:change];
+        } else {
+            [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,7 @@
 //  -------------
 //  Matthias Tretter (@myell0w)
 //  Manfred Scheiner (@scheinem)
+//  Alexander Wolf
 //
 //  Copyright (c) 2012 NOUS Wissensmanagement GmbH. All rights reserved.
 //
