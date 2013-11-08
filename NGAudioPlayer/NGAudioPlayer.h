@@ -66,7 +66,10 @@
 - (void)playURL:(NSURL *)url;
 - (void)play;
 - (void)pause;
-/**
+- (CMTime)currentItemsDuration;
+- (CMTime)currentTime;
+- (void)seekToTime:(CMTime)time completionHandler:(void (^)(BOOL finished))completionHandler;
+    /**
  Pauses the player and removes all items from the queue.
  */
 - (void)stop;

@@ -32,6 +32,7 @@ static char currentItemContext;
         unsigned int didFinishPlaybackOfURL:1;
         unsigned int didChangePlaybackState:1;
         unsigned int didFail:1;
+        unsigned int didPlayToTime:1;
 	} _delegateFlags;
 }
 
@@ -39,6 +40,9 @@ static char currentItemContext;
 @property (nonatomic, readonly) CMTime CMDurationOfCurrentItem;
 @property (nonatomic, strong) NGAudioPlayerControlResponder *controlResponder;
 @property (nonatomic, assign, readwrite) NGAudioPlayerPlaybackState playbackState;
+
+@property (nonatomic, assign) CGFloat oldTime;
+@property (nonatomic, assign) id periodicObserver;
 
 - (NSURL *)URLOfItem:(AVPlayerItem *)item;
 - (CMTime)CMDurationOfItem:(AVPlayerItem *)item;
@@ -92,6 +96,25 @@ static char currentItemContext;
         [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathRate options:NSKeyValueObservingOptionNew context:&rateContext ];
         [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathStatus options:NSKeyValueObservingOptionNew context:&statusContext];
         [_player addObserver:self forKeyPath:kNGAudioPlayerKeypathCurrentItem options:NSKeyValueObservingOptionNew context:&currentItemContext];
+        
+        __block id strongSelf = self;
+        self.periodicObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMakeWithSeconds(1.f, 1.f) queue:NULL usingBlock:^(CMTime time) {
+            NGAudioPlayer *currentPlayer = (NGAudioPlayer *)strongSelf;
+            
+            if (abs(CMTimeGetSeconds(time) - currentPlayer.oldTime) > 0.5f && currentPlayer.playbackState != NGAudioPlayerPlaybackStatePlaying) {
+                currentPlayer.playbackState = NGAudioPlayerPlaybackStatePlaying;
+            } else if (abs(CMTimeGetSeconds(time)) < 0.5f && currentPlayer.playbackState != NGAudioPlayerPlaybackStatePaused) {
+                currentPlayer.playbackState = NGAudioPlayerPlaybackStateBuffering;
+            }
+            
+            if (currentPlayer->_delegateFlags.didPlayToTime) {
+                dispatch_async(currentPlayer.delegate_queue, ^{
+                    [currentPlayer.delegate audioPlayerDidPlayToTime:time fromTime:[currentPlayer currentItemsDuration]];
+                });
+            }
+            
+            currentPlayer.oldTime = CMTimeGetSeconds(time);
+        }];
 		
         _automaticallyUpdateNowPlayingInfoCenter = YES;
         self.usesMediaControls = YES;
@@ -131,6 +154,8 @@ static char currentItemContext;
     } else if (context == &currentItemContext && [keyPath isEqualToString:kNGAudioPlayerKeypathCurrentItem]) {
         [self handleCurrentItemChange:change];
     } else if (object == self.player.currentItem && [keyPath isEqualToString:@"playbackLikelyToKeepUp"]) {
+        [self handlePlaybackStatusChange:change];
+    } else if (object == self.player.currentItem && [keyPath isEqualToString:kNGAudioPlayerKeypathPlayback]) {
         [self handlePlaybackStatusChange:change];
     }
     else {
@@ -184,6 +209,7 @@ static char currentItemContext;
         _delegateFlags.didFinishPlaybackOfURL = [delegate respondsToSelector:@selector(audioPlayer:didFinishPlaybackOfURL:)];
         _delegateFlags.didChangePlaybackState = [delegate respondsToSelector:@selector(audioPlayerDidChangePlaybackState:)];
         _delegateFlags.didFail = [delegate respondsToSelector:@selector(audioPlayer:didFailForURL:)];
+        _delegateFlags.didPlayToTime = [delegate respondsToSelector:@selector(audioPlayerDidPlayToTime:fromTime:)];
     }
 }
 
@@ -273,6 +299,18 @@ static char currentItemContext;
     } else {
         [self play];
     }
+}
+
+- (CMTime)currentItemsDuration {
+    return self.player.currentItem.duration;
+}
+
+- (CMTime)currentTime {
+    return self.player.currentTime;
+}
+
+- (void)seekToTime:(CMTime)time completionHandler:(void (^)(BOOL finished))completionHandler {
+    [self.player seekToTime:time completionHandler:completionHandler];
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -469,9 +507,11 @@ static char currentItemContext;
                                                object:newItem];
     
     [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(playerItemDidFailToPlayToEnd:)
+                                             selector:@selector(playerItemDidFailPlayToEndTime:)
                                                  name:AVPlayerItemFailedToPlayToEndTimeNotification
                                                object:newItem];
+    
+    self.oldTime = 0.f;
     
     [newItem addObserver:self
               forKeyPath:kNGAudioPlayerKeypathPlayback

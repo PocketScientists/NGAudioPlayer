@@ -23,4 +23,6 @@
 
 - (void)audioPlayerDidChangePlaybackState:(NGAudioPlayerPlaybackState)playbackState;
 
+- (void)audioPlayerDidPlayToTime:(CMTime)time fromTime:(CMTime)fromTime;
+
 @end

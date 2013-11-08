@@ -56,6 +56,14 @@
     UIEvent *receivedEvent = (UIEvent *)[notification object];
     if (receivedEvent.type == UIEventTypeRemoteControl) {
         switch (receivedEvent.subtype) {
+            case UIEventSubtypeRemoteControlPlay: {
+                [self.player play];
+                break;
+            }
+            case UIEventSubtypeRemoteControlPause: {
+                [self.player pause];
+                break;
+            }
             case UIEventSubtypeRemoteControlTogglePlayPause: {
                 [self.player togglePlayback];
                 break;
@@ -64,6 +72,7 @@
                 break;
             }
             case UIEventSubtypeRemoteControlNextTrack: {
+                [self.player advanceToNextURL];
                 break;
             }
             default: {
