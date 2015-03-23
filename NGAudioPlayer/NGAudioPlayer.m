@@ -388,6 +388,9 @@ static char currentItemContext;
 }
 
 - (void)removeAllURLs {
+    for(AVPlayerItem *item in self.player.items){
+        [item removeObserver:self forKeyPath:kNGAudioPlayerKeypathPlayback];
+    }
     [self.player removeAllItems];
 }
 
