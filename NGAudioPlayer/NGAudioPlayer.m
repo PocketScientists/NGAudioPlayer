@@ -280,6 +280,15 @@ static char currentItemContext;
     [self.player play];
 }
 
+-(void)resume:(NSURL *)url{
+    if(self.player.items.count>0){
+        [self.player play];
+    }else{
+        [self playURL:url];
+    }
+    
+}
+
 - (void)pause {
     [self.player pause];
 }
@@ -379,7 +388,9 @@ static char currentItemContext;
     
     // We only remove the first item with this URL (there should be a maximum of one)
     if (itemsWithURL.count > 0) {
-        [self.player removeItem:[itemsWithURL objectAtIndex:0]];
+        AVPlayerItem *itemToRemove = [itemsWithURL objectAtIndex:0];
+        [itemToRemove removeObserver:self forKeyPath:kNGAudioPlayerKeypathPlayback];
+        [self.player removeItem:itemToRemove];
         
         return YES;
     }
@@ -389,8 +400,16 @@ static char currentItemContext;
 
 - (void)removeAllURLs {
     for(AVPlayerItem *item in self.player.items){
-        [item removeObserver:self forKeyPath:kNGAudioPlayerKeypathPlayback];
+        @try {
+            [item removeObserver:self forKeyPath:kNGAudioPlayerKeypathPlayback];
+        }
+        @catch (NSException *exception) {
+            
+        }
+        @finally {
+        }
     }
+    
     [self.player removeAllItems];
 }
 
@@ -537,6 +556,13 @@ static char currentItemContext;
 }
 
 - (void)playerItemDidPlayToEndTime:(NSNotification *)notification {
+    
+//    if([notification.object isKindOfClass:[AVPlayerItem class]]){
+//        AVPlayerItem *item = notification.object;
+//        [item removeObserver:self forKeyPath:kNGAudioPlayerKeypathPlayback];
+//    }
+
+    
     if (_delegateFlags.didFinishPlaybackOfURL) {
         NSURL *url = [self URLOfItem:notification.object];
         
@@ -545,6 +571,8 @@ static char currentItemContext;
                 [self.delegate audioPlayer:self didFinishPlaybackOfURL:url];
             });
         }
+    }else{
+        [self stop];
     }
 }
 

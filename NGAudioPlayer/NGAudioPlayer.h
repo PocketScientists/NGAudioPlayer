@@ -65,6 +65,7 @@
  */
 - (void)playURL:(NSURL *)url;
 - (void)play;
+- (void)resume:(NSURL *)url;
 - (void)pause;
 - (CMTime)currentItemsDuration;
 - (CMTime)currentTime;
