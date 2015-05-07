@@ -76,6 +76,7 @@
  */
 - (void)stop;
 - (void)togglePlayback;
+- (void)buffering;
 
 - (void)fadePlayerFromVolume:(CGFloat)fromVolume toVolume:(CGFloat)toVolume duration:(NSTimeInterval)duration;
 

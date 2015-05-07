@@ -81,40 +81,22 @@ static char statusContext;
             
             for (NSURL *url in urls) {
                 if ([url isKindOfClass:[NSURL class]]) {
-                    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
+                    AVURLAsset *asset = [AVURLAsset assetWithURL: url];
+                    AVPlayerItem *item = [AVPlayerItem playerItemWithAsset: asset];
                     [items addObject:item];
-                    
                 }
             }
-
+            
             _queuePlayer = [AVQueuePlayer queuePlayerWithItems:items];
         } else {
             _queuePlayer = [AVQueuePlayer queuePlayerWithItems:nil];
-
+            
         }
         
-                [_queuePlayer addObserver:self forKeyPath:kNGAudioPlayerKeypathRate options:NSKeyValueObservingOptionNew context:&rateContext ];
-                [_queuePlayer addObserver:self forKeyPath:kNGAudioPlayerKeypathStatus options:NSKeyValueObservingOptionNew context:&statusContext];
+        [_queuePlayer addObserver:self forKeyPath:kNGAudioPlayerKeypathRate options:NSKeyValueObservingOptionNew context:&rateContext ];
+        [_queuePlayer addObserver:self forKeyPath:kNGAudioPlayerKeypathStatus options:NSKeyValueObservingOptionNew context:&statusContext];
         
-        __block id strongSelf = self;
-        self.periodicObserver = [_queuePlayer addPeriodicTimeObserverForInterval:CMTimeMakeWithSeconds(1.f, 1.f) queue:NULL usingBlock:^(CMTime time) {
-            NGAudioPlayer *currentPlayer = (NGAudioPlayer *)strongSelf;
 
-
-            if (abs((int)(CMTimeGetSeconds(time) - currentPlayer.oldTime) > 0.5f && currentPlayer.playbackState == NGAudioPlayerPlaybackStateBuffering)) {
-                currentPlayer.playbackState = NGAudioPlayerPlaybackStatePlaying;
-            } else if (abs((int)(CMTimeGetSeconds(time)) < 0.5f && currentPlayer.playbackState != NGAudioPlayerPlaybackStatePaused)) {
-                currentPlayer.playbackState = NGAudioPlayerPlaybackStateBuffering;
-            }
-            
-            if (currentPlayer->_delegateFlags.didPlayToTime) {
-                dispatch_async(currentPlayer.delegate_queue, ^{
-                    [currentPlayer.delegate audioPlayerDidPlayToTime:time fromTime:[currentPlayer currentItemsDuration]];
-                });
-            }
-            
-            currentPlayer.oldTime = CMTimeGetSeconds(time);
-        }];
         
         _automaticallyUpdateNowPlayingInfoCenter = YES;
         self.usesMediaControls = YES;
@@ -140,8 +122,8 @@ static char statusContext;
     
     [self removeObserverFromItems];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-        [_queuePlayer removeObserver:self forKeyPath:kNGAudioPlayerKeypathRate];
-        [_queuePlayer removeObserver:self forKeyPath:kNGAudioPlayerKeypathStatus];
+    [_queuePlayer removeObserver:self forKeyPath:kNGAudioPlayerKeypathRate];
+    [_queuePlayer removeObserver:self forKeyPath:kNGAudioPlayerKeypathStatus];
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -149,6 +131,7 @@ static char statusContext;
 ////////////////////////////////////////////////////////////////////////
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    NSLog(@"observeValueForKeyPath: %@",keyPath);
     if (context == &rateContext && [keyPath isEqualToString:kNGAudioPlayerKeypathRate]) {
         [self handleRateChange:change];
     } else if (context == &statusContext && [keyPath isEqualToString:kNGAudioPlayerKeypathStatus]) {
@@ -228,6 +211,8 @@ static char statusContext;
     }
 }
 
+
+
 ////////////////////////////////////////////////////////////////////////
 #pragma mark - NGAudioPlayer Class Methods
 ////////////////////////////////////////////////////////////////////////
@@ -273,7 +258,10 @@ static char statusContext;
 }
 
 - (void)play {
+    NSLog(@"NGAudioPlayer: PLAY");
+
     [self addObserverForCurrentItem];
+    [self addPeriodicObserver];
     [self.queuePlayer play];
     NSURL *url = [self URLOfItem:self.queuePlayer.currentItem];
     if (url != nil && _delegateFlags.didStartPlaybackOfURL) {
@@ -282,19 +270,26 @@ static char statusContext;
         });
         
     }
+    
+    if(!url){
+        NSLog(@"NO URL!!!!");
+    }
+    
     NSDictionary *nowPlayingInfo = url.ng_nowPlayingInfo;
     if (nowPlayingInfo && self.automaticallyUpdateNowPlayingInfoCenter && NSClassFromString(@"MPNowPlayingInfoCenter") != nil) {
         [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nowPlayingInfo;
-    
+        
     }
-
+    
 }
+
+
 
 -(void)resume:(NSURL *)url{
     NSLog(@"NGAudioPlayer: RESUME");
     
     if(self.queuePlayer.items.count>0){
-        [self.queuePlayer play];
+        [self play];
     }else{
         [self playURL:url];
     }
@@ -303,18 +298,20 @@ static char statusContext;
 
 - (void)pause {
     NSLog(@"NGAudioPlayer: PAUSE");
-    
+    [self removeObserverFromCurrentItem];
     [self.queuePlayer pause];
-    
-    
-    
+}
+
+-(void)buffering{
+    self.playbackState = NGAudioPlayerPlaybackStateBuffering;
 }
 
 - (void)stop {
     NSLog(@"NGAudioPlayer: STOP");
     [self removeObserverFromCurrentItem];
-    
+    [self removePeriodicObserver];
     [self.queuePlayer pause];
+
     NSArray *urls = [self enqueuedURLs];
     [self removeAllURLs];
     if (!self.removeAllURLsOnPlaybackStop) {
@@ -331,7 +328,7 @@ static char statusContext;
 }
 
 - (CMTime)currentItemsDuration {
-    return self.queuePlayer.currentItem.duration;
+    return [self CMDurationOfCurrentItem];;
 }
 
 - (CMTime)currentTime {
@@ -348,7 +345,8 @@ static char statusContext;
 
 - (BOOL)enqueueURL:(NSURL *)url {
     if ([url isKindOfClass:[NSURL class]]) {
-        AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
+        AVURLAsset *asset = [AVURLAsset assetWithURL: url];
+        AVPlayerItem *item = [AVPlayerItem playerItemWithAsset: asset];
         
         if ([self.queuePlayer canInsertItem:item afterItem:nil]) {
             [self.queuePlayer insertItem:item afterItem:nil];
@@ -475,7 +473,7 @@ static char statusContext;
 - (void)handleRateChange:(NSDictionary *)change {
     float rate = [[change valueForKey:NSKeyValueChangeNewKey] floatValue];
     NSLog(@"Rate: %f",rate);
-    NSLog(@"Playback Likely To Keep Up: %i",self.queuePlayer.currentItem.playbackLikelyToKeepUp);
+    NSLog(@"Playback Likely To Keep Up: %@" ,self.queuePlayer.currentItem.isPlaybackLikelyToKeepUp ? @"YES" : @"NO");
     if (rate > 0.f) {
         if (self.queuePlayer.currentItem.isPlaybackLikelyToKeepUp ) {
             self.playbackState = NGAudioPlayerPlaybackStatePlaying;
@@ -492,7 +490,7 @@ static char statusContext;
 - (void)handleStatusChange:(NSDictionary *)change {
     AVPlayerStatus newStatus = (AVPlayerStatus)[[change valueForKey:NSKeyValueChangeNewKey] intValue];
     NSLog(@"Status: %li", (long)newStatus);
-
+    
     if (newStatus == AVPlayerStatusFailed) {
         if (_delegateFlags.didFail) {
             dispatch_async(self.delegate_queue, ^{
@@ -504,6 +502,7 @@ static char statusContext;
 
 - (void)handlePlaybackStatusChange:(NSDictionary *)change {
     BOOL bufferingFinished = [[change valueForKey:NSKeyValueChangeNewKey] boolValue];
+
     if (bufferingFinished) {
         if (self.queuePlayer.rate > 0.f) {
             NSLog(@"handlePlaybackStatusChange Rate: %f",self.queuePlayer.rate);
@@ -556,14 +555,13 @@ static char statusContext;
 -(void)addObserverForCurrentItem{
     AVPlayerItem *item = self.queuePlayer.currentItem;
     if(!item){
-        NSLog(@"CURRENT ITEM IS NIL");
         return;
     }
     [self addObserverToPlayerItem:item];
 }
 
 -(void)addObserverToPlayerItem:(AVPlayerItem *)item{
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(itemDidPlayToEnd:) name:AVPlayerItemDidPlayToEndTimeNotification object:item];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(itemDidFailPlayToEnd:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(itemTimeJumped:) name:AVPlayerItemTimeJumpedNotification object:item];
@@ -576,6 +574,7 @@ static char statusContext;
 
 -(void)itemDidPlayToEnd:(NSNotification *)notification{
     
+
     if (_delegateFlags.didFinishPlaybackOfURL) {
         NSURL *url = [self URLOfItem:notification.object];
         
@@ -585,13 +584,15 @@ static char statusContext;
             });
         }
     }else{
-        [self stop];
     }
     
-    
+    [self stop];
+
 }
 
 -(void)itemDidFailPlayToEnd:(NSNotification *)notification{
+    self.playbackState = NGAudioPlayerPlaybackStateBuffering;
+    
     if (_delegateFlags.didFail) {
         NSURL *url = [self URLOfItem:notification.object];
         
@@ -605,7 +606,7 @@ static char statusContext;
 
 -(void)itemPlaybackStalled:(NSNotification *)notification{
     NSLog(@"Time Stalled Back");
-
+    
     AVPlayerItem *item = (AVPlayerItem *)notification.object;
     BOOL bufferingFinished = item.playbackLikelyToKeepUp;
     if (bufferingFinished) {
@@ -617,7 +618,7 @@ static char statusContext;
     else {
         self.playbackState = NGAudioPlayerPlaybackStateBuffering;
     }
-
+    
 }
 
 -(void)itemTimeJumped:(NSNotification *)notification{
@@ -625,6 +626,7 @@ static char statusContext;
     AVPlayerItem *item = (AVPlayerItem *)notification.object;
     if(item){
         NSLog(@"Time Jumped");
+        [self play];
     }
 }
 
@@ -644,6 +646,14 @@ static char statusContext;
 }
 
 -(void)removeObserverFromItem:(AVPlayerItem *)item{
+
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:item];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemTimeJumpedNotification object:item];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemPlaybackStalledNotification object:item];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemNewAccessLogEntryNotification object:item];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemNewErrorLogEntryNotification object:item];
+    
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:item];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemTimeJumpedNotification object:item];
@@ -655,7 +665,16 @@ static char statusContext;
 -(void)removeObserverFromCurrentItem{
     AVPlayerItem *item = self.queuePlayer.currentItem;
     if(!item){
-        NSLog(@"CURRENT ITEM IS NIL");
+        return;
+    }else{
+        
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemTimeJumpedNotification object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemPlaybackStalledNotification object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemNewAccessLogEntryNotification object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemNewErrorLogEntryNotification object:nil];
+
     }
     [self removeObserverFromItem:item];
 }
@@ -665,4 +684,44 @@ static char statusContext;
         [self removeObserverFromItem:item];
     }
 }
+
+
+#pragma mark - Periodic observer
+-(void)addPeriodicObserver{
+    __block id strongSelf = self;
+    
+    if(!self.periodicObserver){
+        self.periodicObserver = [_queuePlayer addPeriodicTimeObserverForInterval:CMTimeMakeWithSeconds(1.f, 1.f) queue:NULL usingBlock:^(CMTime time) {
+            NGAudioPlayer *currentPlayer = (NGAudioPlayer *)strongSelf;
+            
+            CGFloat oldTime = currentPlayer.oldTime;
+            CGFloat currentTime =  CMTimeGetSeconds(time);
+            CGFloat diff = currentTime-oldTime;
+            
+            NSLog(@"Old time: %f Current Time: %f Diff:%f",oldTime,currentTime,diff);
+            if (diff > 0.0010f && currentPlayer.playbackState == NGAudioPlayerPlaybackStateBuffering) {
+                currentPlayer.playbackState = NGAudioPlayerPlaybackStatePlaying;
+            } else if (diff <= 0.0010f && currentPlayer.playbackState == NGAudioPlayerPlaybackStatePlaying) {
+                currentPlayer.playbackState = NGAudioPlayerPlaybackStateBuffering;
+            }
+            
+            if (currentPlayer->_delegateFlags.didPlayToTime) {
+                dispatch_async(currentPlayer.delegate_queue, ^{
+                    [currentPlayer.delegate audioPlayerDidPlayToTime:time fromTime:[currentPlayer currentItemsDuration]];
+                });
+            }
+            
+            currentPlayer.oldTime = CMTimeGetSeconds(time);
+        }];
+    }
+}
+
+-(void)removePeriodicObserver{
+    if(self.periodicObserver){
+        [_queuePlayer removeTimeObserver:self.periodicObserver];
+        self.periodicObserver=nil;
+    }
+}
+
+
 @end
