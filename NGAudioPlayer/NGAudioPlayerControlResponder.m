@@ -19,6 +19,7 @@
     if (self != nil) {
         self.player = player;
         [[NSNotificationCenter defaultCenter] addObserver:self selector:NSSelectorFromString(@"remoteControlReceivedWithEvent:") name:@"remoteControlReceivedWithEvent" object:nil];
+
     }
     return self;
 }
@@ -26,7 +27,12 @@
 - (void)dealloc {
     self.respondingToControls = NO;
     self.player = nil;
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"remoteControlReceivedWithEvent" object:nil];
+
 }
+
+
+
 
 ////////////////////////////////////////////////////////////////////////
 #pragma mark - NGAudioPlayerResponder Properties
@@ -54,7 +60,7 @@
 
 - (void)remoteControlReceivedWithEvent:(NSNotification *)notification {
     UIEvent *receivedEvent = (UIEvent *)[notification object];
-    if (receivedEvent.type == UIEventTypeRemoteControl) {
+    if (receivedEvent.type == UIEventTypeRemoteControl && _respondingToControls) {
         switch (receivedEvent.subtype) {
             case UIEventSubtypeRemoteControlPlay: {
                 [self.player play];

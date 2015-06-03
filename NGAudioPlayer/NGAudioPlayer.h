@@ -56,6 +56,15 @@
 - (id)initWithURLs:(NSArray *)urls;
 
 /******************************************
+ @name Metadata
+ ******************************************/
+
+/**
+ *To identify the instance of the audioplayer. 
+ */
+@property (strong, nonatomic) NSString *audioPlayerIdentifier;
+
+/******************************************
  @name Playback
  ******************************************/
 
