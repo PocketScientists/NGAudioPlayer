@@ -12,7 +12,6 @@
 
 @class NGAudioPlayer;
 
-
 @protocol NGAudioPlayerDelegate <NSObject>
 
 @optional
