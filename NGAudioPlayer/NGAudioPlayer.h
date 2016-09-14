@@ -53,6 +53,7 @@
  ******************************************/
 
 - (id)initWithURL:(NSURL *)url;
+- (id)initWithURL:(NSURL *)url stationName:(NSString*)stationName;
 - (id)initWithURLs:(NSArray *)urls;
 
 /******************************************

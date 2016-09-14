@@ -48,6 +48,7 @@ static char statusContext;
 
 @property (nonatomic, strong) AVQueuePlayer *queuePlayer;
 
+@property (nonatomic, strong) NSString *stationName;
 
 - (NSURL *)URLOfItem:(AVPlayerItem *)item;
 - (CMTime)CMDurationOfItem:(AVPlayerItem *)item;
@@ -111,6 +112,12 @@ static char statusContext;
 
 - (id)initWithURL:(NSURL *)url {
     return [self initWithURLs:[NSArray arrayWithObject:url]];
+}
+
+- (id)initWithURL:(NSURL *)url stationName:(NSString*)stationName {
+    self = [self initWithURL:url];
+    _stationName = stationName;
+    return self;
 }
 
 - (id)init {
@@ -280,20 +287,21 @@ static char statusContext;
     }
     
     NSDictionary *playingInfo = [url ng_nowPlayingInfo];
-       
        if(!playingInfo){
             NSMutableDictionary *nowPlayingInfo = [NSMutableDictionary dictionary];
            [nowPlayingInfo setObject:@"Live Stream" forKey:MPMediaItemPropertyTitle];
-           [nowPlayingInfo setObject:@"Ö1 Radio" forKey:MPMediaItemPropertyArtist];
+           if ( _stationName && ![_stationName isEqual:[NSNull null]] && (_stationName.length>0) ) {
+               [nowPlayingInfo setObject:_stationName forKey:MPMediaItemPropertyArtist];
+           }
+           else {
+               [nowPlayingInfo setObject:@"Ö1 Radio" forKey:MPMediaItemPropertyArtist];
+           }
+           NSLog(@"NGAudioPlayer: PLAY -> Displayed station name: %@",[nowPlayingInfo valueForKey:MPMediaItemPropertyArtist]);
            playingInfo = nowPlayingInfo;
-
        }
-       
     if (self.automaticallyUpdateNowPlayingInfoCenter && NSClassFromString(@"MPNowPlayingInfoCenter") != nil) {
         [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = playingInfo;
-        
     }
-    
 }
 
 
